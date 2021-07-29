@@ -1,8 +1,6 @@
-import json
-# TODO make adding new config items less work
-from json import JSONDecodeError
-from pydantic import BaseModel, validator, ValidationError
 from pathlib import Path
+from configparser import ConfigParser
+
 
 class InvalidVanillaPathError(Exception):
     def __init__(self, title: str, message: str):
@@ -10,83 +8,74 @@ class InvalidVanillaPathError(Exception):
         self.message = message
         super().__init__(message)
 
+
 class InvalidModPathError(Exception):
     def __init__(self, title: str, message: str):
         self.title = title
         self.message = message
         super().__init__(message)
 
-class Config(BaseModel):
-    """
-    Basic Model to validate the data in the config file.
 
-    Attributes
-    -----------
-    prefix: the mod prefix
-    vanilla_path: the path to the vanilla stellaris root folder
-    mod_path: the path to the mod root folder
-    """
-    prefix: str
-    vanilla_path: Path
-    mod_path: Path
-
-    def create_new:
-        new_config = {
-            "prefix": "",
-            "vanilla_path": "",
-            "mod_path": ""
-        }
-
-
-    @validator("vanilla_path")
-    @classmethod
-    def validate_vanilla_path(cls, vanilla_path):
-        if not Path(vanilla_path).exists or not Path(str(vanilla_path) + "\common").exists():
-            raise InvalidVanillaPathError(
-                title=vanilla_path,
-                message="Couldn't find vanilla files!"
+class ModPath(type(Path())):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        if not self.exists():
+            raise InvalidModPathError(
+                title="Invalid mod path!",
+                message="Couldn't find mod files!"
             )
 
-
-
-
-    @validator("mod_path")
-    @classmethod
-    def validate_mod_path(cls, mod_path):
-        if not Path(mod_path).exists() or not Path(str(mod_path) + "\common").exists():
+        if not Path(str(self) + "\common").exists():
+            print(str(self) + "\common")
             raise InvalidModPathError(
-                title=mod_path,
+                title="Invalid mod path!",
                 message="Couldn't find mod files!"
             )
 
 
-    class Config:
-        validate_assignment = True
+class VanillaPath(type(Path())):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        if not self.exists() or self == "":
+            raise InvalidVanillaPathError(
+                title="Invalid vanilla path!",
+                message="Couldn't find vanilla files!"
+            )
+        if not Path(str(self) + "\common").exists():
+            raise InvalidVanillaPathError(
+                title="Invalid vanilla path!",
+                message="Couldn't find vanilla files!"
+            )
 
-def read_config(file):
+
+def create_new_config():
+    config = ConfigParser()
+    prefix = input("Enter mod prefix: ")
+    config['SETTINGS'] = {
+        "prefix": prefix,
+        "mod_path": "null",
+        "vanilla_path": "null"
+    }
+    with open('config/config.ini', 'w') as configfile:
+        config.write(configfile)
+
+
+def read_config():
+    config = ConfigParser()
     while True:
-
-        if Path(file).exists():
-            try:
-                config = Config.parse_file(file)
-            except(JSONDecodeError):
-                print("Config file missing or corrupted, generating new file.")
-                new_prefix = input("Enter mod prefix:")
-                new_vanilla_path = Path(input("Enter path to vanilla root folder: "))
-                new_mod_path = Path(input("Enter path to mod root folder: "))
-                new_config = Config(prefix=new_prefix, vanilla_path=new_vanilla_path, mod_path=new_mod_path)
-                with open(file, "w") as config_file:
-                    print(new_config.schema())
-                    config_file.write(new_config.schema())
-
+        try:
+            config.read('config/config.ini')
+            mod_path = ModPath(config["SETTINGS"]["mod_path"])
+            vanilla_path = VanillaPath(config["SETTINGS"]["vanilla_path"])
             break
-        else:
-            new_empty_config = Config(prefix="", vanilla_path="", mod_path="")
-            print(new_empty_config)
-            print("Config file missing or corrupted, generating new file.")
-            with open(file, "w") as config_file:
-                config_file.write(new_empty_config.schema())
-            continue
 
+        except InvalidVanillaPathError:
+            config["SETTINGS"]["vanilla_path"] = input("Invalid vanilla path. Please enter a valid path: ")
+            with open('config/config.ini', 'w') as configfile:
+                config.write(configfile)
 
-    #return config
+        except InvalidModPathError:
+            config["SETTINGS"]["mod_path"] = input("Invalid Mod path. Please enter a valid path: ")
+            with open('config/config.ini', 'w') as configfile:
+                config.write(configfile)
+    return config

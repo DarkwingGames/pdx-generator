@@ -1,4 +1,11 @@
 
-from config_handler import read_config
+from config_handler import *
 
-Config = read_config("config/config.json")
+config = ConfigParser()
+
+if not Path("config/config.ini").exists():
+    create_new_config()
+    config = read_config()
+else:
+    config = read_config()
+    print(config)
